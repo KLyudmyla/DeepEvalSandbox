@@ -1,0 +1,17 @@
+Engineering Technology Guidelines
+
+The company's primary technology stack consists of Python, FastAPI, and React.
+Python is the main programming language used for backend services.
+FastAPI is the preferred framework for developing new Python APIs.
+React is used for the development of web application interfaces.
+Existing services may use other frameworks when there are technical reasons to keep them.
+Django is not currently listed as part of the primary technology stack.
+New backend services should use the approved technology stack unless an exception is agreed.
+Engineers should discuss significant technology changes with their technical lead.
+Third-party libraries should be evaluated before being introduced into production services.
+Dependencies should be kept reasonably up to date.
+Automated tests are expected for new backend functionality.
+API changes should be documented when they affect other services or clients.
+Code should follow the team's established Python style and quality guidelines.
+Production services must use the company's approved deployment process.
+Questions about the technology stack should be directed to the engineering team.

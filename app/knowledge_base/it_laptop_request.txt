@@ -1,0 +1,17 @@
+IT Equipment Request Procedure
+
+Employees who need a new company laptop must submit an IT-01 request.
+The IT-01 form is available on the internal company portal.
+The request should include the employee's name and department.
+Employees should briefly explain why a new laptop is required.
+IT reviews the request before approving the equipment.
+A replacement may be approved when the current laptop is damaged or no longer suitable for the employee's work.
+Employees should not purchase a replacement laptop themselves without prior approval.
+After approval, IT will arrange the appropriate equipment.
+The standard laptop model depends on the employee's role and technical requirements.
+Employees with specialized technical requirements should describe them in the IT-01 request.
+The IT team may contact the employee for additional information.
+Equipment requests are processed during normal IT support hours.
+The employee should keep the approved request for their records.
+Company laptops remain company property and must be returned when employment ends.
+Questions about equipment requests should be submitted through the internal IT support channel.
