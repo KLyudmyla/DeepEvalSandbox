@@ -16,3 +16,4 @@ chromadb==0.5.23
 huggingface-hub==0.36.2
 langchain-chroma==0.1.4
 tokenizers==0.20.3
+deepeval==3.7.1
