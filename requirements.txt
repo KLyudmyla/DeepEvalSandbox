@@ -1,10 +1,9 @@
 langchain==0.2.16
 langchain-openai==0.1.22
 langchain-community==0.2.12
-chromadb==0.5.5
 fastapi==0.112.2
 uvicorn==0.30.6
-pydantic==2.9.2
+pydantic==2.11.7
 pytest==8.3.2
 pytest-asyncio==0.23.8
 requests==2.32.3
@@ -17,3 +16,4 @@ huggingface-hub==0.36.2
 langchain-chroma==0.1.4
 tokenizers==0.20.3
 deepeval==3.7.1
+portalocker[win32]==2.10.1
