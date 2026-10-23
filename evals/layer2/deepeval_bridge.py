@@ -1,4 +1,4 @@
-"""Small compatibility boundary for the optional DeepEval runtime dependency."""
+"""Small bridge to the optional DeepEval runtime dependency."""
 
 from __future__ import annotations
 

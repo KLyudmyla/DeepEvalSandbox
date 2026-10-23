@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from evals.datasets.golden_dataset import GOLDEN_DATASET
+from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET
 
 from .config import DEFAULT_METRIC_THRESHOLDS
-from .deepeval_compat import (
+from .deepeval_bridge import (
     AsyncConfig,
     BaseMetric,
     DisplayConfig,

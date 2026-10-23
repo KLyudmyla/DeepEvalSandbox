@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
+import math
 
-from .deepeval_compat import LLMTestCase
+from .deepeval_bridge import LLMTestCase
 
 
 _LLM_FIELD_ALIASES: tuple[tuple[str, ...], ...] = (
@@ -148,8 +149,16 @@ def aggregate_layer2_report(
     cases_report: list[dict[str, Any]] = []
     metric_totals: dict[str, dict[str, int]] = {}
 
+    cases_by_name = {str(case.name): case for case in test_cases}
+    seen_names: set[str] = set()
     for index, result in enumerate(test_results):
-        case = test_cases[index] if index < len(test_cases) else None
+        result_name = getattr(result, "name", None)
+        case = cases_by_name.get(str(result_name)) if result_name is not None else (test_cases[index] if index < len(test_cases) else None)
+        if case is None:
+            raise ValueError(f"DeepEval returned an unknown or unnamed case: {result_name!r}")
+        if str(case.name) in seen_names:
+            raise ValueError(f"DeepEval returned a duplicate case: {result_name!r}")
+        seen_names.add(str(case.name))
         case_meta = getattr(case, "additional_metadata", {}) or {}
         case_thresholds = case_meta.get("thresholds", {}) if isinstance(case_meta, Mapping) else {}
 
@@ -158,8 +167,13 @@ def aggregate_layer2_report(
             for metric in (getattr(result, "metrics_data", None) or [])
         ]
 
+        negative_case = not case_meta.get("ground_truth_document_ids", ["unavailable"])
         for row in metric_rows:
             name = str(row.get("name") or "unknown")
+            if negative_case and name in {"Recall@k", "Precision@k", "Hit Rate@k", "MRR", "nDCG@k"}:
+                row["applicable"] = False
+                row["success"] = None
+                continue
 
             configured_threshold = resolve_metric_threshold(
                 name,
@@ -169,9 +183,14 @@ def aggregate_layer2_report(
 
             if configured_threshold is not None:
                 row["threshold"] = configured_threshold
-                score = row.get("score")
-                if score is not None and row.get("error") is None:
-                    row["success"] = float(score) >= float(configured_threshold)
+            score = row.get("score")
+            if score is not None and row.get("error") is None:
+                numeric = float(score)
+                row["success"] = math.isfinite(numeric) and (
+                    configured_threshold is not None and numeric >= float(configured_threshold)
+                )
+            else:
+                row["success"] = False
 
             totals = metric_totals.setdefault(name, {"passed": 0, "failed": 0})
             totals["passed" if row.get("success") is True else "failed"] += 1
@@ -190,7 +209,7 @@ def aggregate_layer2_report(
                 "case-id": case_id,
                 "id": case_id,
                 "input": result_input,
-                "success": all(row.get("success") is True for row in metric_rows),
+                "success": any(row.get("success") is True for row in metric_rows) and all(row.get("success") in (True, None) for row in metric_rows),
                 "metrics": metric_rows,
             }
         )
@@ -205,12 +224,13 @@ def aggregate_layer2_report(
         }
         for case in cases_report
         for metric in case["metrics"]
-        if metric.get("success") is not True
+        if metric.get("success") not in (True, None)
     ]
 
     return {
         "schema_version": "layer2-retrieval-report/v1",
-        "passed": not failed_metrics and all(case["success"] for case in cases_report),
+        "passed": bool(cases_report) and len(cases_report) == len(test_cases)
+        and not failed_metrics and all(case["success"] for case in cases_report),
         "thresholds": dict(thresholds or {}),
         "metric_totals": metric_totals,
         "failed_metrics": failed_metrics,

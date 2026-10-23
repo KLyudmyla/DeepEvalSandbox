@@ -9,10 +9,10 @@ from dataclasses import dataclass, field
 from numbers import Real
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
-from evals.datasets.golden_dataset import GOLDEN_DATASET
+from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET
 
 from .config import DEFAULT_K, SEMANTIC_RELEVANCE_MAX
-from .deepeval_compat import LLMTestCase
+from .deepeval_bridge import LLMTestCase
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,7 @@ def stable_unique_ids(values: Iterable[Any]) -> list[str]:
 def validate_k(k: int | None) -> int:
     if k is None:
         return 0
-    if isinstance(k, bool) or not isinstance(k, int) or k < 0:
+    if isinstance(k, bool) or not isinstance(k, int) or k <= 0:
         raise ValueError("k must be a non-negative integer or None")
     return k
 
@@ -113,24 +113,8 @@ def normalize_retrieved_documents(results: Iterable[Any]) -> list[RetrievedDocum
             )
         normalized.append((position, document))
 
-    if normalized and all(document.rank_score is not None for _, document in normalized):
-        normalized.sort(key=lambda pair: (-float(pair[1].rank_score), pair[1].document_id, pair[0]))
 
-    unique: list[RetrievedDocument] = []
-    seen: set[str] = set()
-    for _, document in normalized:
-        identifier = document_id(document)
-        if identifier not in seen:
-            seen.add(identifier)
-            if identifier != document.document_id:
-                document = RetrievedDocument(
-                    document_id=identifier,
-                    content=document.content,
-                    metadata=document.metadata,
-                    rank_score=document.rank_score,
-                )
-            unique.append(document)
-    return unique
+    return [document for _, document in normalized]
 
 
 def exact_json_equal(left: Any, right: Any) -> bool:
@@ -148,7 +132,7 @@ def exact_json_equal(left: Any, right: Any) -> bool:
 def validate_golden_dataset(dataset: Sequence[Mapping[str, Any]]) -> None:
     """Fail fast on malformed or internally inconsistent golden data."""
 
-    if isinstance(dataset, (str, bytes)) or not isinstance(dataset, Sequence):
+    if isinstance(dataset, (str, bytes)) or not isinstance(dataset, Sequence) or not dataset:
         raise ValueError("Golden dataset must be a sequence of case objects")
 
     seen_case_ids: set[str] = set()
@@ -195,9 +179,12 @@ def validate_golden_dataset(dataset: Sequence[Mapping[str, Any]]) -> None:
         if len(score_ids) != len(set(score_ids)):
             raise ValueError(f"{case_id}: graded_relevance_scores must not contain duplicate document IDs")
         scores = positive_relevance_map(raw_scores)
-        if not set(scores).issubset(set(ground_truth)):
-            raise ValueError(f"{case_id}: graded relevance IDs must be ground-truth IDs")
+        # Weakly relevant distractors may be graded without being binary ground truth.
+        if any(scores.get(doc_id, 0) < 2 for doc_id in ground_truth):
+            raise ValueError(f"{case_id}: ground-truth IDs must have relevance grade 2 or 3")
         validate_k(case.get("k", DEFAULT_K))
+        if len(ground_truth) > case.get("k", DEFAULT_K):
+            raise ValueError(f"{case_id}: k cannot cover all ground-truth documents")
 
         if "expected_metadata" in case:
             expected_metadata = case["expected_metadata"]
@@ -244,11 +231,12 @@ def build_layer2_test_cases(
         result = retrieve(golden["query"], k)
         if inspect.isawaitable(result):
             result = asyncio.run(result)
-        documents = normalize_retrieved_documents(result or [])
+        documents = normalize_retrieved_documents(result or [])[:k]
         metadata = {
             "golden_id": golden["id"],
             "retrieved_document_ids": [document.document_id for document in documents],
             "retrieved_metadata": [dict(document.metadata) for document in documents],
+            "expected_metadata": golden.get("expected_metadata"),
             "ground_truth_document_ids": list(golden["ground_truth_document_ids"]),
             "expected_metadata_filters": dict(golden["expected_metadata_filters"]),
             "graded_relevance_scores": dict(golden["graded_relevance_scores"]),

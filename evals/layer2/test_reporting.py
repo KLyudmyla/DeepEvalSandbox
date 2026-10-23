@@ -1,4 +1,4 @@
-"""Deterministic tests for Layer 2 threshold resolution and report gating."""
+"""Deterministic tests for Layer 2 threshold resolution and report gating.It tests whether evaluation results are interpreted correctly"""
 
 from __future__ import annotations
 

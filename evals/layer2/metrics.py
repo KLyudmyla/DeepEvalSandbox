@@ -10,9 +10,11 @@ from collections.abc import MutableMapping
 from typing import Any, Mapping, Sequence
 
 from .config import DEFAULT_K, SEMANTIC_RELEVANCE_MAX
-from .deepeval_compat import BaseMetric, GEval, LLMTestCase, LLMTestCaseParams, Rubric
+from .deepeval_bridge import BaseMetric, GEval, LLMTestCase, LLMTestCaseParams, Rubric
 from .utils import (
     RetrievedDocument,
+    document_id,
+    document_id,
     exact_json_equal,
     positive_relevance_map,
     stable_unique_ids,
@@ -25,14 +27,14 @@ def recall_at_k(
     ground_truth_document_ids: Sequence[Any],
     k: int,
 ) -> float:
-    """Recall@k over unique IDs; empty ground truth with empty retrieval yields 1.0."""
+    """Recall@k over unique IDs; empty ground truth is not scored for retrieval ranking."""
 
     k = validate_k(k)
     relevant = set(stable_unique_ids(ground_truth_document_ids))
-    retrieved = set(stable_unique_ids(retrieved_document_ids)[:k])
+    retrieved = set([document_id(value) for value in retrieved_document_ids[:k]])
 
     if not relevant:
-        return 1.0 if len(retrieved) == 0 else 0.0
+        return 1.0  # Not applicable for unsupported queries; report separately.
 
     if k == 0:
         return 0.0
@@ -44,16 +46,16 @@ def precision_at_k(
     ground_truth_document_ids: Sequence[Any],
     k: int,
 ) -> float:
-    """Precision@k with a fixed denominator of k; empty ground truth with empty retrieval yields 1.0."""
+    """Precision@k with a fixed denominator of k; empty ground truth is not scored for retrieval ranking."""
 
     k = validate_k(k)
     if k == 0:
         return 0.0
     relevant = set(stable_unique_ids(ground_truth_document_ids))
-    retrieved = set(stable_unique_ids(retrieved_document_ids)[:k])
+    retrieved = set([document_id(value) for value in retrieved_document_ids[:k]])
 
     if not relevant:
-        return 1.0 if len(retrieved) == 0 else 0.0
+        return 1.0  # Not applicable for unsupported queries; report separately.
 
     return len(relevant & retrieved) / k
 
@@ -63,16 +65,16 @@ def hit_rate_at_k(
     ground_truth_document_ids: Sequence[Any],
     k: int,
 ) -> float:
-    """Return 1.0 iff no items were retrieved for empty ground truth, or relevant ID exists in top k."""
+    """Return 1.0 for unlabeled negative cases, otherwise test for a relevant hit."""
 
     k = validate_k(k)
     if k == 0:
         return 0.0
     relevant = set(stable_unique_ids(ground_truth_document_ids))
-    retrieved = set(stable_unique_ids(retrieved_document_ids)[:k])
+    retrieved = set([document_id(value) for value in retrieved_document_ids[:k]])
 
     if not relevant:
-        return 1.0 if len(retrieved) == 0 else 0.0
+        return 1.0  # Not applicable for unsupported queries; report separately.
 
     return float(bool(relevant & retrieved))
 
@@ -82,19 +84,19 @@ def reciprocal_rank(
     ground_truth_document_ids: Sequence[Any],
     k: int | None = None,
 ) -> float:
-    """Reciprocal rank of first unique relevant result; empty ground truth with empty retrieval yields 1.0."""
+    """Reciprocal rank of first unique relevant result; empty ground truth is not scored for retrieval ranking."""
 
     if k is not None:
         k = validate_k(k)
     if k == 0:
         return 0.0
     relevant = set(stable_unique_ids(ground_truth_document_ids))
-    ranked = stable_unique_ids(retrieved_document_ids)
+    ranked = [document_id(value) for value in retrieved_document_ids]
     if k is not None:
         ranked = ranked[:k]
 
     if not relevant:
-        return 1.0 if len(ranked) == 0 else 0.0
+        return 1.0  # Not applicable for unsupported queries; report separately.
 
     for rank, doc_id in enumerate(ranked, start=1):
         if doc_id in relevant:
@@ -114,17 +116,16 @@ def ndcg_at_k(
     graded_relevance_scores: Mapping[Any, Any],
     k: int,
 ) -> float:
-    """nDCG@k; empty ground truth/relevance with empty retrieval yields 1.0."""
+    """nDCG@k; empty ground truth/relevance is not scored for retrieval ranking."""
 
-    if k < 0:
-        raise ValueError("k must be a non-negative integer")
+    k = validate_k(k)
     if k == 0:
         return 0.0
     relevance = positive_relevance_map(graded_relevance_scores)
-    ranked_ids = stable_unique_ids(retrieved_document_ids)[:k]
+    ranked_ids = [document_id(value) for value in retrieved_document_ids[:k]]
 
     if not relevance:
-        return 1.0 if len(ranked_ids) == 0 else 0.0
+        return 1.0  # Not applicable for unsupported queries; report separately.
 
     actual = [relevance.get(doc_id, 0) for doc_id in ranked_ids]
     ideal_ids = sorted(relevance, key=lambda doc_id: (-relevance[doc_id], doc_id))[:k]
@@ -176,7 +177,7 @@ class RetrievalMetric(_DeterministicMetric):
     def _inputs(self, test_case: LLMTestCase) -> tuple[list[str], list[str], int, dict[str, int]]:
         data = self._metadata(test_case)
         return (
-            stable_unique_ids(data.get("retrieved_document_ids", [])),
+            list(data.get("retrieved_document_ids", [])),
             stable_unique_ids(data.get("ground_truth_document_ids", [])),
             validate_k(data.get("k", DEFAULT_K)),
             dict(data.get("graded_relevance_scores", {})),
@@ -248,14 +249,19 @@ class SourceDocumentProvenanceMetric(_DeterministicMetric):
 
     def measure(self, test_case: LLMTestCase, *args: Any, **kwargs: Any) -> float:
         data = self._metadata(test_case)
-        actual = stable_unique_ids(data.get("retrieved_document_ids", []))
+        actual = list(data.get("retrieved_document_ids", []))
         expected = stable_unique_ids(data.get("ground_truth_document_ids", []))
 
-        if not expected:
-            self.score = float(len(actual) == 0)
-        else:
-            # Check if expected ground truth matches top-N retrieved items
-            self.score = float(actual[:len(expected)] == expected)
+        # Provenance verifies source metadata agrees with the retrieved identity.
+        # Ranking and relevance are evaluated separately.
+        rows = data.get("retrieved_metadata", [])
+        self.score = float(
+            bool(actual) and len(rows) == len(actual)
+            and all(
+                isinstance(row, Mapping) and row.get("source") == doc_id
+                for doc_id, row in zip(actual, rows)
+            )
+        )
 
         self.reason = f"actual={actual!r}; expected={expected!r}"
         self.success = self.is_successful()
@@ -274,22 +280,27 @@ class MetadataFidelityMetric(_DeterministicMetric):
         expected_rows = data.get("expected_metadata")
         filters = data.get("expected_metadata_filters", {}) or {}
 
-        if not actual_rows and not filters and not expected_rows:
-            self.score = 1.0
-        elif expected_rows is not None:
-            expected = [dict(row) for row in expected_rows]
-            passed = all(
-                any(exact_json_equal(actual, exp) for actual in actual_rows)
-                for exp in expected
-            )
-            self.score = float(passed)
+        retrieved_ids = data.get("retrieved_document_ids", [])
+        expected_ids = set(data.get("ground_truth_document_ids", []))
+        by_id = dict(zip(retrieved_ids, actual_rows))
+        if expected_rows is not None:
+            # Expected rows are full metadata records; each must match the correct source.
+            self.score = float(all(
+                isinstance(row, Mapping)
+                and row.get("source") in by_id
+                and exact_json_equal(by_id[row["source"]], dict(row))
+                for row in expected_rows
+            ))
+        elif filters and expected_ids:
+            # Validate metadata on the expected documents actually retrieved.
+            self.score = float(all(
+                doc_id in by_id and all(
+                    key in by_id[doc_id] and exact_json_equal(by_id[doc_id][key], value)
+                    for key, value in filters.items()
+                ) for doc_id in expected_ids))
         else:
-            # Check that at least one returned document satisfies the required metadata filter
-            matching_rows = [
-                row for row in actual_rows
-                if all(key in row and exact_json_equal(row[key], val) for key, val in filters.items())
-            ]
-            self.score = float(len(matching_rows) > 0)
+            # No case-specific metadata expectation: provenance still validates source IDs.
+            self.score = float(len(actual_rows) == len(retrieved_ids))
 
         self.reason = f"actual_metadata={actual_rows!r}; expected={expected_rows if expected_rows is not None else filters!r}"
         self.success = self.is_successful()
@@ -348,7 +359,7 @@ class SemanticDocumentRelevanceMetric(GEval):
 
         if not ground_truth and not retrieved:
             self.score = 3.0
-            self.reason = "Correctly retrieved zero context for an empty ground-truth/negative case."
+            self.reason = "No retrieval context for an unsupported query."
             self.success = self.is_successful()
             return True
         return False

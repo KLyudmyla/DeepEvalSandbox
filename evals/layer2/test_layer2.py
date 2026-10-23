@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from evals.datasets.golden_dataset import GOLDEN_DATASET
+from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET
 from evals.layer2.__main__ import _build_agent
 from evals.layer2.run_layer2 import run_layer2_evaluation
 

@@ -11,7 +11,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from app.agent import DocumentSearchAgent
 
-from evals.datasets.golden_dataset import GOLDEN_DATASET
+from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET
 from .run_layer2 import run_layer2_evaluation
 
 
@@ -29,16 +29,6 @@ def _build_agent(api_key: str) -> Any:
     for path in sorted(knowledge_base.glob("*.txt")):
         agent.upload_document(text=path.read_text(encoding="utf-8"), source=path.name)
 
-    # Wrap retrieve_documents to enforce empty retrieval for out-of-domain/negative queries
-    original_retrieve = agent.retrieve_documents
-
-    def filtered_retrieve(query: str, k: int = 5) -> list[Any]:
-        # Out-of-domain queries should yield empty retrieval contexts
-        if "Germany" in query:
-            return []
-        return original_retrieve(query, k)
-
-    agent.retrieve_documents = filtered_retrieve  # type: ignore[method-assign]
     return agent
 
 
@@ -71,10 +61,11 @@ def main() -> int:
         GOLDEN_DATASET,
         judge_model=args.judge_model if args.with_judge else None,
         report_path=report_path,
+        fail_on_threshold=False,
     )
     print(f"Layer 2 passed: {report['passed']}")
     print(f"Report: {Path(report_path).resolve()}")
-    return 0
+    return 0 if report["passed"] else 1
 
 
 if __name__ == "__main__":

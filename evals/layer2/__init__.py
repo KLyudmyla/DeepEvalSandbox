@@ -6,7 +6,7 @@ from .config import (
     GOLDEN_DATASET_SCHEMA,
     SEMANTIC_RELEVANCE_MAX,
 )
-from evals.datasets.golden_dataset import GOLDEN_DATASET, MY_DATASET
+from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET, MY_DATASET
 from .metrics import (
     HitRateAtKMetric,
     MetadataFidelityMetric,
