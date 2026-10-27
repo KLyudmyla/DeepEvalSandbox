@@ -16,4 +16,5 @@ huggingface-hub==0.36.2
 langchain-chroma==0.1.4
 tokenizers==0.20.3
 deepeval==3.7.1
+jsonschema>=4.20,<5
 portalocker[win32]==2.10.1

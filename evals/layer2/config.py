@@ -15,8 +15,10 @@ Metric annotations:
   * MRR: reciprocal rank of the first ground-truth document in the ranked
     results (1 / rank), or 0.0 when no relevant document is found.
   * nDCG@k: ranking quality using graded relevance scores from 0 to 3. It
-    compares discounted cumulative gain in the first k results with the ideal
-    ordering; gain is ``(2**relevance - 1) / log2(rank + 1)``.
+    compares discounted cumulative gain in the first k unique results with the
+    ideal ordering; gain is ``(2**relevance - 1) / log2(rank + 1)``.
+  * Duplicate-free rate@k: fraction of returned top-k slots occupied by a
+    first occurrence of a document ID. A score of 1.0 means no duplicates.
   * Source document ID provenance: verifies that every retrieved metadata row
     exists and its ``source`` field matches the corresponding retrieved ID.
   * Metadata key-value fidelity: verifies expected full metadata rows or
@@ -36,6 +38,7 @@ from typing import Any
 
 DEFAULT_K = 5
 SEMANTIC_RELEVANCE_MAX = 3
+DEFAULT_JUDGE_MODEL = "gpt-4o-mini"
 DEFAULT_METRIC_THRESHOLDS: dict[str, float] = {
     # Fraction of expected unique documents retrieved in the top k.
     "Recall@k": 0.8,
@@ -47,6 +50,8 @@ DEFAULT_METRIC_THRESHOLDS: dict[str, float] = {
     "MRR": 0.5,
     # Graded ranking quality normalized against the ideal top-k ordering.
     "nDCG@k": 0.5,
+    # No duplicate document IDs in the returned top-k window.
+    "Duplicate-free rate@k": 1.0,
     # Every returned metadata row has a source ID matching its retrieved ID.
     "Source document ID provenance": 1.0,
     # Expected metadata rows/filters match retrieved metadata exactly.
@@ -59,6 +64,7 @@ GOLDEN_DATASET_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Layer 2 Document Retrieval Golden Dataset",
     "type": "array",
+    "minItems": 1,
     "items": {
         "type": "object",
         "additionalProperties": False,
@@ -68,34 +74,74 @@ GOLDEN_DATASET_SCHEMA: dict[str, Any] = {
             "ground_truth_document_ids",
             "expected_metadata_filters",
             "graded_relevance_scores",
+            "query_type",
         ],
         "properties": {
-            "id": {"type": "string", "minLength": 1},
-            "query": {"type": "string", "minLength": 1},
+            "id": {
+                "type": "string",
+                "minLength": 1
+            },
+            "query": {
+                "type": "string",
+                "minLength": 1
+            },
             "ground_truth_document_ids": {
                 "type": "array",
-                "items": {"type": "string"},
+                "items": {
+                    "type": "string",
+                    "minLength": 1
+                },
                 "uniqueItems": True,
             },
-            "expected_metadata_filters": {"type": "object", "additionalProperties": {}},
+            "expected_metadata_filters": {
+                "type": "object",
+                "additionalProperties": {}
+            },
             "graded_relevance_scores": {
                 "type": "object",
+                "propertyNames": {
+                    "type": "string",
+                    "minLength": 1
+                },
                 "additionalProperties": {
                     "type": "integer",
                     "minimum": 0,
-                    "maximum": 3,
+                    "maximum": 3
                 },
             },
-            "k": {"type": "integer", "minimum": 0},
-            "expected_metadata": {"type": "array", "items": {"type": "object"}},
-            "thresholds": {"type": "object", "additionalProperties": {"type": "number"}},
-            "tags": {"type": "array", "items": {"type": "string"}},
+            "query_type": {
+                "type": "string",
+                "enum": ["answerable", "unanswerable"]
+            },
+            "k": {
+                "type": "integer",
+                "minimum": 0
+            },
+            "expected_metadata": {
+                "type": "array",
+                "items": {
+                    "type": "object"
+                }
+            },
+            "thresholds": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "number"
+                }
+            },
+            "tags": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
         },
     },
 }
 
 __all__ = [
     "DEFAULT_K",
+    "DEFAULT_JUDGE_MODEL",
     "SEMANTIC_RELEVANCE_MAX",
     "DEFAULT_METRIC_THRESHOLDS",
     "GOLDEN_DATASET_SCHEMA",

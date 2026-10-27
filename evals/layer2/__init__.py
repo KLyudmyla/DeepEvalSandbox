@@ -1,6 +1,7 @@
 """Layer 2 retrieval evaluation package."""
 
 from .config import (
+    DEFAULT_JUDGE_MODEL,
     DEFAULT_K,
     DEFAULT_METRIC_THRESHOLDS,
     GOLDEN_DATASET_SCHEMA,
@@ -9,6 +10,7 @@ from .config import (
 from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET, MY_DATASET
 from .metrics import (
     HitRateAtKMetric,
+    DuplicateFreeRateAtKMetric,
     MetadataFidelityMetric,
     MRRMetric,
     NDCGAtKMetric,
@@ -19,6 +21,7 @@ from .metrics import (
     SourceDocumentProvenanceMetric,
     hit_rate_at_k,
     ndcg_at_k,
+    duplicate_free_rate_at_k,
     precision_at_k,
     recall_at_k,
     reciprocal_rank,
@@ -45,6 +48,7 @@ validate_golden_dataset(GOLDEN_DATASET)
 
 __all__ = [
     "DEFAULT_K",
+    "DEFAULT_JUDGE_MODEL",
     "DEFAULT_METRIC_THRESHOLDS",
     "SEMANTIC_RELEVANCE_MAX",
     "GOLDEN_DATASET",
@@ -64,12 +68,14 @@ __all__ = [
     "hit_rate_at_k",
     "reciprocal_rank",
     "ndcg_at_k",
+    "duplicate_free_rate_at_k",
     "RetrievalMetric",
     "RecallAtKMetric",
     "PrecisionAtKMetric",
     "HitRateAtKMetric",
     "MRRMetric",
     "NDCGAtKMetric",
+    "DuplicateFreeRateAtKMetric",
     "SourceDocumentProvenanceMetric",
     "MetadataFidelityMetric",
     "SemanticDocumentRelevanceMetric",

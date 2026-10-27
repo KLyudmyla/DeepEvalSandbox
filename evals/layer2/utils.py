@@ -6,12 +6,12 @@ import asyncio
 import inspect
 import json
 from dataclasses import dataclass, field
-from numbers import Real
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 from evals.datasets.golden_dataset_l2 import GOLDEN_DATASET
+from jsonschema import Draft202012Validator
 
-from .config import DEFAULT_K, SEMANTIC_RELEVANCE_MAX
+from .config import DEFAULT_K, GOLDEN_DATASET_SCHEMA, SEMANTIC_RELEVANCE_MAX
 from .deepeval_bridge import LLMTestCase
 
 
@@ -66,7 +66,7 @@ def stable_unique_ids(values: Iterable[Any]) -> list[str]:
 def validate_k(k: int | None) -> int:
     if k is None:
         return 0
-    if isinstance(k, bool) or not isinstance(k, int) or k <= 0:
+    if isinstance(k, bool) or not isinstance(k, int) or k < 0:
         raise ValueError("k must be a non-negative integer or None")
     return k
 
@@ -86,7 +86,7 @@ def positive_relevance_map(graded_relevance: Mapping[Any, Any] | None) -> dict[s
 
 
 def normalize_retrieved_documents(results: Iterable[Any]) -> list[RetrievedDocument]:
-    """Normalize and deduplicate retrieval output with deterministic score ties."""
+    """Normalize retrieval output while preserving retriever order and rank slots."""
 
     normalized: list[tuple[int, RetrievedDocument]] = []
     for position, result in enumerate(results or []):
@@ -132,29 +132,17 @@ def exact_json_equal(left: Any, right: Any) -> bool:
 def validate_golden_dataset(dataset: Sequence[Mapping[str, Any]]) -> None:
     """Fail fast on malformed or internally inconsistent golden data."""
 
-    if isinstance(dataset, (str, bytes)) or not isinstance(dataset, Sequence) or not dataset:
-        raise ValueError("Golden dataset must be a sequence of case objects")
+    schema_errors = sorted(
+        Draft202012Validator(GOLDEN_DATASET_SCHEMA).iter_errors(dataset),
+        key=lambda error: list(error.absolute_path),
+    )
+    if schema_errors:
+        error = schema_errors[0]
+        location = ".".join(str(part) for part in error.absolute_path) or "<dataset>"
+        raise ValueError(f"Golden dataset schema error at {location}: {error.message}")
 
     seen_case_ids: set[str] = set()
-    required = {
-        "id",
-        "query",
-        "ground_truth_document_ids",
-        "expected_metadata_filters",
-        "graded_relevance_scores",
-    }
-    optional = {"k", "expected_metadata", "thresholds", "tags"}
     for case in dataset:
-        if not isinstance(case, Mapping):
-            raise ValueError("Each golden case must be an object")
-        missing = required - set(case)
-        if missing:
-            raise ValueError(f"Golden case is missing required fields: {sorted(missing)}")
-        unknown = set(case) - required - optional
-        if unknown:
-            raise ValueError(f"Golden case has unsupported fields: {sorted(unknown)}")
-        if not isinstance(case["id"], str) or not isinstance(case["query"], str):
-            raise ValueError("Golden case id and query must be strings")
         case_id = case["id"].strip()
         query = case["query"].strip()
         if not case_id or not query or case_id in seen_case_ids:
@@ -165,16 +153,20 @@ def validate_golden_dataset(dataset: Sequence[Mapping[str, Any]]) -> None:
         if isinstance(raw_ground_truth, (str, bytes)) or not isinstance(raw_ground_truth, Sequence):
             raise ValueError(f"{case_id}: ground_truth_document_ids must be an array")
         ground_truth = [document_id(value) for value in raw_ground_truth]
+        expected_query_type = (
+            "answerable" if ground_truth else "unanswerable"
+        )
+
+        if case["query_type"] != expected_query_type:
+            raise ValueError(
+                f"{case_id}: query_type={case['query_type']!r} "
+                f"is inconsistent with ground_truth_document_ids. "
+                f"Expected {expected_query_type!r}."
+            )
         if len(ground_truth) != len(set(ground_truth)):
             raise ValueError(f"{case_id}: ground_truth_document_ids must not contain duplicates")
 
-        filters = case["expected_metadata_filters"]
-        if not isinstance(filters, Mapping):
-            raise ValueError(f"{case_id}: expected_metadata_filters must be an object")
-
         raw_scores = case["graded_relevance_scores"]
-        if not isinstance(raw_scores, Mapping):
-            raise ValueError(f"{case_id}: graded_relevance_scores must be an object")
         score_ids = [document_id(identifier) for identifier in raw_scores]
         if len(score_ids) != len(set(score_ids)):
             raise ValueError(f"{case_id}: graded_relevance_scores must not contain duplicate document IDs")
@@ -185,28 +177,6 @@ def validate_golden_dataset(dataset: Sequence[Mapping[str, Any]]) -> None:
         validate_k(case.get("k", DEFAULT_K))
         if len(ground_truth) > case.get("k", DEFAULT_K):
             raise ValueError(f"{case_id}: k cannot cover all ground-truth documents")
-
-        if "expected_metadata" in case:
-            expected_metadata = case["expected_metadata"]
-            if isinstance(expected_metadata, (str, bytes)) or not isinstance(expected_metadata, Sequence):
-                raise ValueError(f"{case_id}: expected_metadata must be an array of objects")
-            if any(not isinstance(row, Mapping) for row in expected_metadata):
-                raise ValueError(f"{case_id}: every expected_metadata item must be an object")
-
-        if "tags" in case:
-            tags = case["tags"]
-            if isinstance(tags, (str, bytes)) or not isinstance(tags, Sequence):
-                raise ValueError(f"{case_id}: tags must be an array of strings")
-            if any(not isinstance(tag, str) for tag in tags):
-                raise ValueError(f"{case_id}: every tag must be a string")
-
-        if "thresholds" in case:
-            thresholds = case["thresholds"]
-            if not isinstance(thresholds, Mapping):
-                raise ValueError(f"{case_id}: thresholds must be an object")
-            if any(isinstance(value, bool) or not isinstance(value, Real) for value in thresholds.values()):
-                raise ValueError(f"{case_id}: threshold values must be numbers")
-
 
 def _to_retriever(agent_or_retriever: Any) -> Callable[[str, int], Any]:
     if callable(agent_or_retriever):
@@ -221,46 +191,81 @@ def build_layer2_test_cases(
     agent_or_retriever: Any,
     dataset: Sequence[Mapping[str, Any]] = GOLDEN_DATASET,
 ) -> list[LLMTestCase]:
-    """Run retrieval and convert every golden case into an ``LLMTestCase``."""
+    """Run retrieval and convert every golden case into an LLMTestCase."""
 
     validate_golden_dataset(dataset)
+
     retrieve = _to_retriever(agent_or_retriever)
     cases: list[LLMTestCase] = []
+
     for golden in dataset:
         k = int(golden.get("k", DEFAULT_K))
+
         result = retrieve(golden["query"], k)
+
         if inspect.isawaitable(result):
             result = asyncio.run(result)
+
         documents = normalize_retrieved_documents(result or [])[:k]
+
+        ground_truth_ids = list(
+            golden["ground_truth_document_ids"]
+        )
+
+        query_type = (
+            "answerable"
+            if ground_truth_ids
+            else "unanswerable"
+        )
+
         metadata = {
             "golden_id": golden["id"],
-            "retrieved_document_ids": [document.document_id for document in documents],
-            "retrieved_metadata": [dict(document.metadata) for document in documents],
+            "query_type": query_type,
+            "retrieved_document_ids": [
+                document.document_id
+                for document in documents
+            ],
+            "retrieved_metadata": [
+                dict(document.metadata)
+                for document in documents
+            ],
             "expected_metadata": golden.get("expected_metadata"),
-            "ground_truth_document_ids": list(golden["ground_truth_document_ids"]),
-            "expected_metadata_filters": dict(golden["expected_metadata_filters"]),
-            "graded_relevance_scores": dict(golden["graded_relevance_scores"]),
+            "ground_truth_document_ids": ground_truth_ids,
+            "expected_metadata_filters": dict(
+                golden["expected_metadata_filters"]
+            ),
+            "graded_relevance_scores": dict(
+                golden["graded_relevance_scores"]
+            ),
             "k": k,
-            "thresholds": dict(golden.get("thresholds", {})),  # <-- Added
+            "thresholds": dict(golden.get("thresholds", {})),
         }
+
         expected_output = json.dumps(
             {
-                "ground_truth_document_ids": golden["ground_truth_document_ids"],
-                "graded_relevance_scores": golden["graded_relevance_scores"],
+                "ground_truth_document_ids": ground_truth_ids,
+                "graded_relevance_scores": golden[
+                    "graded_relevance_scores"
+                ],
             },
             sort_keys=True,
         )
+
         cases.append(
             LLMTestCase(
                 name=str(golden["id"]),
                 input=str(golden["query"]),
                 actual_output="",
                 expected_output=expected_output,
-                retrieval_context=[document.content for document in documents],
+                retrieval_context=[
+                    document.content
+                    for document in documents
+                ],
                 additional_metadata=metadata,
                 tags=list(golden.get("tags", [])),
             )
         )
+
     return cases
 
 

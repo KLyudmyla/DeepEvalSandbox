@@ -14,7 +14,6 @@ from .deepeval_bridge import BaseMetric, GEval, LLMTestCase, LLMTestCaseParams, 
 from .utils import (
     RetrievedDocument,
     document_id,
-    document_id,
     exact_json_equal,
     positive_relevance_map,
     stable_unique_ids,
@@ -122,7 +121,10 @@ def ndcg_at_k(
     if k == 0:
         return 0.0
     relevance = positive_relevance_map(graded_relevance_scores)
-    ranked_ids = [document_id(value) for value in retrieved_document_ids[:k]]
+    # nDCG is evaluated over ranked unique documents. Duplicate handling is
+    # reported separately by duplicate_free_rate_at_k so nDCG remains a
+    # standard ranking metric while duplicate retrieval is still a hard gate.
+    ranked_ids = stable_unique_ids(retrieved_document_ids[:k])
 
     if not relevance:
         return 1.0  # Not applicable for unsupported queries; report separately.
@@ -131,6 +133,23 @@ def ndcg_at_k(
     ideal_ids = sorted(relevance, key=lambda doc_id: (-relevance[doc_id], doc_id))[:k]
     ideal_gain = _discounted_gain([relevance[doc_id] for doc_id in ideal_ids])
     return 0.0 if ideal_gain == 0 else _discounted_gain(actual) / ideal_gain
+
+
+def duplicate_free_rate_at_k(
+    retrieved_document_ids: Sequence[Any],
+    k: int,
+) -> float:
+    """Return the fraction of observed top-k slots that are first occurrences.
+
+    Empty retrieval and a retrieval shorter than ``k`` are not penalized for
+    missing results; ranking coverage metrics handle that separately.
+    """
+
+    k = validate_k(k)
+    ranked_ids = [document_id(value) for value in retrieved_document_ids[:k]]
+    if not ranked_ids:
+        return 1.0
+    return len(stable_unique_ids(ranked_ids)) / len(ranked_ids)
 
 
 class _DeterministicMetric(BaseMetric, ABC):
@@ -146,6 +165,7 @@ class _DeterministicMetric(BaseMetric, ABC):
         self.score: float | None = None
         self.reason: str | None = None
         self.success: bool | None = None
+        self.applicable: bool = True
         self.error: str | None = None
 
     @property
@@ -241,8 +261,26 @@ class NDCGAtKMetric(RetrievalMetric):
         return ndcg_at_k(retrieved, graded, k)
 
 
+class DuplicateFreeRateAtKMetric(_DeterministicMetric):
+    """Assert that every observed top-k result is a unique document."""
+
+    def __init__(self, threshold: float = 1.0) -> None:
+        super().__init__("Duplicate-free rate@k", threshold)
+
+    def measure(self, test_case: LLMTestCase, *args: Any, **kwargs: Any) -> float:
+        data = self._metadata(test_case)
+        retrieved = data.get("retrieved_document_ids", [])
+        k = validate_k(data.get("k", DEFAULT_K))
+
+        self.score = duplicate_free_rate_at_k(retrieved, k)
+        self.reason = f"Duplicate-free rate@k={self.score:.6f}"
+        self.success = self.is_successful()
+
+        return self.score
+
+
 class SourceDocumentProvenanceMetric(_DeterministicMetric):
-    """Assert retrieved document IDs match expected ground truth up to the expected count."""
+    """Validate source identity, excluding empty negative retrievals as N/A."""
 
     def __init__(self, threshold: float = 1.0) -> None:
         super().__init__("Source document ID provenance", threshold)
@@ -255,13 +293,24 @@ class SourceDocumentProvenanceMetric(_DeterministicMetric):
         # Provenance verifies source metadata agrees with the retrieved identity.
         # Ranking and relevance are evaluated separately.
         rows = data.get("retrieved_metadata", [])
-        self.score = float(
-            bool(actual) and len(rows) == len(actual)
-            and all(
-                isinstance(row, Mapping) and row.get("source") == doc_id
-                for doc_id, row in zip(actual, rows)
+        self.applicable = True
+        if not actual:
+            if not expected:
+                self.score = 1.0
+                self.applicable = False
+                self.success = None
+                self.reason = f"not applicable: empty retrieval for negative case; expected={expected!r}"
+                return self.score
+            self.score = 0.0
+        else:
+            self.applicable = True
+            self.score = float(
+                len(rows) == len(actual)
+                and all(
+                    isinstance(row, Mapping) and row.get("source") == doc_id
+                    for doc_id, row in zip(actual, rows)
+                )
             )
-        )
 
         self.reason = f"actual={actual!r}; expected={expected!r}"
         self.success = self.is_successful()
@@ -276,7 +325,13 @@ class MetadataFidelityMetric(_DeterministicMetric):
 
     def measure(self, test_case: LLMTestCase, *args: Any, **kwargs: Any) -> float:
         data = self._metadata(test_case)
-        actual_rows = [dict(row) for row in data.get("retrieved_metadata", []) if isinstance(row, Mapping)]
+        raw_rows = list(data.get("retrieved_metadata", []))
+        actual_rows = [dict(row) for row in raw_rows if isinstance(row, Mapping)]
+        if len(actual_rows) != len(raw_rows):
+            self.score = 0.0
+            self.reason = "Retrieved metadata contains non-mapping rows"
+            self.success = self.is_successful()
+            return self.score
         expected_rows = data.get("expected_metadata")
         filters = data.get("expected_metadata_filters", {}) or {}
 
@@ -285,7 +340,7 @@ class MetadataFidelityMetric(_DeterministicMetric):
         by_id = dict(zip(retrieved_ids, actual_rows))
         if expected_rows is not None:
             # Expected rows are full metadata records; each must match the correct source.
-            self.score = float(all(
+            self.score = float(bool(expected_rows) and len(actual_rows) == len(retrieved_ids) and all(
                 isinstance(row, Mapping)
                 and row.get("source") in by_id
                 and exact_json_equal(by_id[row["source"]], dict(row))
@@ -365,16 +420,23 @@ class SemanticDocumentRelevanceMetric(GEval):
         return False
 
     def measure(self, test_case: LLMTestCase, *args: Any, **kwargs: Any) -> float:
+        self.evaluation_cost = 0.0
+
         if self._check_empty_ground_truth(test_case):
             return self.score  # type: ignore[return-value]
 
         raw_score, reason = self._evaluate(test_case)
+
         score = int(round(float(raw_score)))
         if score < 0 or score > SEMANTIC_RELEVANCE_MAX:
-            raise ValueError(f"GEval returned an invalid semantic relevance score: {raw_score!r}")
+            raise ValueError(
+                f"GEval returned an invalid semantic relevance score: {raw_score!r}"
+            )
+
         self.score = float(score)
         self.reason = str(reason)
         self.success = self.is_successful()
+
         return self.score
 
     async def a_measure(self, test_case: LLMTestCase, *args: Any, **kwargs: Any) -> float:
@@ -400,12 +462,14 @@ __all__ = [
     "hit_rate_at_k",
     "reciprocal_rank",
     "ndcg_at_k",
+    "duplicate_free_rate_at_k",
     "RetrievalMetric",
     "RecallAtKMetric",
     "PrecisionAtKMetric",
     "HitRateAtKMetric",
     "MRRMetric",
     "NDCGAtKMetric",
+    "DuplicateFreeRateAtKMetric",
     "SourceDocumentProvenanceMetric",
     "MetadataFidelityMetric",
     "SemanticDocumentRelevanceMetric",

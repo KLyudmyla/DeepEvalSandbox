@@ -23,6 +23,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3},
         "k": 2,
         "tags": ["single_doc", "fact_retrieval", "engineering", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "anniversary-bonus-15-years",
@@ -32,6 +33,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["single_doc", "amount_retrieval", "compensation", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "legalization-spain",
@@ -41,6 +43,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["single_doc", "contact_retrieval", "legalization", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "remote-work-policy",
@@ -50,6 +53,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3},
         "k": 2,
         "tags": ["single_doc", "policy", "hr", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "unknown-germany-legalization",
@@ -59,6 +63,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {},
         "k": 2,
         "tags": ["abstention", "no_positive_evidence", "easy", "en"],
+        "query_type": "unanswerable"
     },
 
     # =========================================================================
@@ -72,6 +77,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3, "it_laptop_request.txt": 3},
         "k": 3,
         "tags": ["multi_doc", "policy_synthesis", "hr", "it", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-contractor-overtime-and-equipment",
@@ -81,6 +87,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3, "it_laptop_request.txt": 2},
         "k": 3,
         "tags": ["multi_doc", "contractor_rules", "compensation", "it", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-office-conduct-kitchen-remote",
@@ -90,6 +97,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3, "office_kitchen.txt": 3},
         "k": 3,
         "tags": ["multi_doc", "office_rules", "hr", "admin", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-tech-and-it-procurement",
@@ -99,6 +107,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3, "it_laptop_request.txt": 3},
         "k": 3,
         "tags": ["multi_doc", "engineering_it", "engineering", "it", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-perks-bonuses-and-reimbursements",
@@ -108,6 +117,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3, "it_laptop_request.txt": 2},
         "k": 4,
         "tags": ["multi_doc", "benefits_summary", "compensation", "it", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-hr-comprehensive-policy",
@@ -117,6 +127,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3, "valid_document.txt": 3},
         "k": 3,
         "tags": ["multi_doc", "hr_policy", "hr", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-workplace-support-contacts",
@@ -136,6 +147,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         },
         "k": 5,
         "tags": ["multi_doc", "support_routing", "cross_department", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "multi-b2b-vs-employee-conditions",
@@ -149,6 +161,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         },
         "k": 4,
         "tags": ["multi_doc", "employment_terms", "compensation", "hr", "hard", "en"],
+        "query_type": "answerable"
     },
 
     # =========================================================================
@@ -162,6 +175,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "office_kitchen", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-gym-fitness-stipend",
@@ -171,6 +185,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3, "hr_remote_work.txt": 1},
         "k": 2,
         "tags": ["paraphrase", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-new-parent-paternity-maternity",
@@ -180,6 +195,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-django-python-framework",
@@ -189,6 +205,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "engineering", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-laptop-replacement-form",
@@ -198,6 +215,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"it_laptop_request.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "it", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-work-from-home-allowance",
@@ -207,6 +225,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "hr", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-frontend-web-tech",
@@ -216,6 +235,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "engineering", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "para-third-party-gym-payment",
@@ -225,6 +245,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["paraphrase", "implicit_rule", "compensation", "hard", "en"],
+        "query_type": "answerable"
     },
 
     # =========================================================================
@@ -238,6 +259,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["numerical", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-anniversary-bonus-20-years",
@@ -247,6 +269,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["numerical", "compensation", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-anniversary-tier-milestones",
@@ -256,6 +279,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["numerical", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-kitchen-cleaning-cutoff-time",
@@ -265,6 +289,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 3},
         "k": 2,
         "tags": ["numerical", "office_kitchen", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-max-remote-days-per-week",
@@ -274,6 +299,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3},
         "k": 2,
         "tags": ["numerical", "hr", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-gym-reimbursement-cap",
@@ -283,6 +309,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["numerical", "compensation", "easy", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "num-form-code-laptop-request",
@@ -292,6 +319,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"it_laptop_request.txt": 3},
         "k": 2,
         "tags": ["numerical", "entity_lookup", "it", "easy", "en"],
+        "query_type": "answerable"
     },
 
     # =========================================================================
@@ -305,6 +333,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["multilingual", "spanish", "legalization", "medium", "es"],
+        "query_type": "answerable"
     },
     {
         "id": "lang-es-remote-work-days",
@@ -314,6 +343,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3},
         "k": 2,
         "tags": ["multilingual", "spanish", "hr", "medium", "es"],
+        "query_type": "answerable"
     },
     {
         "id": "lang-es-kitchen-cleaning-rule",
@@ -323,6 +353,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 3},
         "k": 2,
         "tags": ["multilingual", "spanish", "office_kitchen", "medium", "es"],
+        "query_type": "answerable"
     },
     {
         "id": "lang-pl-python-framework",
@@ -332,6 +363,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3},
         "k": 2,
         "tags": ["multilingual", "polish", "engineering", "medium", "pl"],
+        "query_type": "answerable"
     },
     {
         "id": "lang-pl-laptop-request-procedure",
@@ -341,6 +373,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"it_laptop_request.txt": 3},
         "k": 2,
         "tags": ["multilingual", "polish", "it", "medium", "pl"],
+        "query_type": "answerable"
     },
     {
         "id": "lang-pl-gym-reimbursement",
@@ -350,6 +383,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["multilingual", "polish", "compensation", "hard", "pl"],
+        "query_type": "answerable"
     },
 
     # =========================================================================
@@ -363,6 +397,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {},
         "k": 2,
         "tags": ["abstention", "out_of_bounds", "easy", "en"],
+        "query_type": "unanswerable"
     },
     {
         "id": "abs-unsupported-relocation-uk",
@@ -372,6 +407,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 1},  # Distractor near-miss
         "k": 2,
         "tags": ["abstention", "near_miss_distractor", "hard", "en"],
+        "query_type": "unanswerable"
     },
     {
         "id": "abs-unsupported-flask-support",
@@ -381,6 +417,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 1},  # Engineering distractor
         "k": 2,
         "tags": ["abstention", "engineering_distractor", "medium", "en"],
+        "query_type": "unanswerable"
     },
     {
         "id": "abs-unsupported-pet-policy",
@@ -390,6 +427,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 1},
         "k": 2,
         "tags": ["abstention", "out_of_bounds", "easy", "en"],
+        "query_type": "unanswerable"
     },
     {
         "id": "abs-unsupported-macbook-pro",
@@ -399,6 +437,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"it_laptop_request.txt": 3},  # Explicitly answered as disallowed in doc
         "k": 2,
         "tags": ["negative_rule_retrieval", "it", "hard", "en"],
+        "query_type": "answerable"
     },
 
     # =========================================================================
@@ -412,6 +451,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"engineering_stack.txt": 3},
         "k": 2,
         "tags": ["typos", "robustness", "engineering", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "noise-typos-anniversary-bonus",
@@ -421,6 +461,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"valid_document.txt": 3},
         "k": 2,
         "tags": ["typos", "robustness", "compensation", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "distractor-laptop-vs-kitchen-cleaning",
@@ -430,6 +471,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 3, "it_laptop_request.txt": 1},
         "k": 3,
         "tags": ["distractor_trap", "multi_doc", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "distractor-sick-leave-vs-remote-work",
@@ -439,6 +481,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3},
         "k": 2,
         "tags": ["policy_trap", "hr", "hard", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "meta-conflict-source-override",
@@ -448,6 +491,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"office_kitchen.txt": 3, "it_laptop_request.txt": 1},
         "k": 2,
         "tags": ["metadata_filter", "admin", "medium", "en"],
+        "query_type": "answerable"
     },
     {
         "id": "distractor-foreign-remote-work-vs-legalization",
@@ -457,6 +501,7 @@ GOLDEN_DATASET: list[dict[str, Any]] = [
         "graded_relevance_scores": {"hr_remote_work.txt": 3, "valid_document.txt": 2},
         "k": 3,
         "tags": ["cross_cutting_distractor", "hr", "legalization", "very_hard", "en"],
+        "query_type": "answerable"
     },
 ]
 
