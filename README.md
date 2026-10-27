@@ -6,8 +6,9 @@ The project contains a small FastAPI service with a Retrieval-Augmented Generati
 knowledge-base documents into a Chroma vector store and uses LangChain and OpenAI models to answer questions based on
 the retrieved documents.
 
-The repository also contains examples of unit testing and a Layer 1 evaluation suite for the RAG ingestion pipeline. 
-DeepEval is included for the next evaluation layers: retrieval quality, answer quality, and agent/tool behavior.
+The repository also contains examples of unit testing, a Layer 1 evaluation suite for the RAG ingestion pipeline, and an
+implemented Layer 2 evaluation for retrieval quality. DeepEval is included for the next evaluation layers: answer quality
+and agent/tool behavior.
 
 ## Requirements
 
@@ -36,37 +37,28 @@ The project was prepared primarily for Windows and PyCharm, but the Python comma
 ```text
 DeepEvalSandbox/
 ├── app/
-│   ├── __init__.py
-│   ├── agent.py
+│   ├── agent.py                      # RAG agent and Chroma-backed document search
+│   ├── main.py                       # FastAPI app and knowledge-base startup loading
 │   ├── it_practice.py
-│   ├── main.py                  # FastAPI app and knowledge-base startup loading
 │   ├── ut_practice.py
-│   ├── knowledge_base/          # Source documents loaded into the vector store
-│   │   ├── engineering_stack.txt
-│   │   ├── hr_remote_work.txt
-│   │   ├── it_laptop_request.txt
-│   │   ├── office_kitchen.txt
-│   │   └── valid_document.txt
-│   └── tests/
-│       ├── __init__.py
-│       └── unit/
-│           ├── __init__.py
-│           └── test_block{0..7}_unittests.py
+│   ├── knowledge_base/               # Source documents loaded into the vector store
+│   │   └── *.txt
+│   └── tests/unit/                   # Application unit tests
 ├── evals/
-│   ├── __init__.py
-│   ├── adapters/
-│   │   ├── __init__.py
-│   │   └── layer1_adapter.py  # Real-agent ingestion and Chroma inspection helpers
-│   ├── fixtures/
-│   │   ├── __init__.py
-│   │   └── layer1/
-│   │       ├── __init__.py
-│   │       └── conftest.py    # Shared isolated-agent fixtures
-│   └── layer1/
-│       ├── __init__.py
-│       ├── conftest.py
-│       └── test_*.py          # Loading, integrity, metadata, encoding, and isolation checks
-├── .env
+│   ├── adapters/layer1_adapter.py   # Layer 1 agent and Chroma inspection helpers
+│   ├── datasets/golden_dataset_l2.py # Layer 2 retrieval scenarios and expected sources
+│   ├── fixtures/layer1/              # Shared isolated-agent fixtures
+│   ├── layer1/                       # Knowledge-base loading and integrity tests
+│   └── layer2/
+│       ├── __main__.py               # CLI entry point for the live evaluation harness
+│       ├── config.py                 # Layer 2 models and thresholds
+│       ├── deepeval_bridge.py        # DeepEval test-case/metric integration
+│       ├── metrics.py                # Deterministic retrieval metrics
+│       ├── reporting.py              # Unified reports, gates, and cost telemetry
+│       ├── run_layer2.py             # Evaluation orchestration
+│       ├── utils.py                  # Dataset validation and retrieval helpers
+│       └── tests/                    # Offline regressions plus opt-in live tests
+├── .env                              # Local OPENAI_API_KEY configuration
 ├── .gitignore
 ├── requirements.txt
 ├── README.md
@@ -180,8 +172,7 @@ answer quality. The checks cover:
 - loading the application knowledge base at startup and making preloaded documents retrievable; and
 - isolating independent evaluation runs from one another.
 
-The tests create a fresh in-memory agent for each scenario, so PostgreSQL is not required. Because they exercise the 
-real agent and its OpenAI embeddings, set `OPENAI_API_KEY` in `.env` or in the shell before running them.
+The tests create a fresh in-memory agent for each scenario, so PostgreSQL is not required.
 
 Run the complete Layer1 suite from the project root:
 
@@ -204,6 +195,64 @@ python -m pytest evals/layer1 -k duplicate -v
 Some Layer1 tests intentionally describe requirements that are not implemented yet, such as content-based deduplication 
 and blank-document rejection. A failure in one of those cases identifies an application behavior that still needs to be 
 implemented; it does not indicate that the test should be removed.
+
+### Layer 2 evaluation tests
+
+Layer 2 evaluates retrieval correctness: whether the real RAG agent returns the relevant knowledge-base documents for a
+question, ranks useful documents above distractors, preserves source metadata, and returns no unsupported evidence for
+unanswerable questions. The evaluation uses the golden dataset in `evals/datasets/golden_dataset_l2.py`, deterministic
+retrieval metrics, and an optional DeepEval GEval judge for semantic relevance. Each run writes a unified JSON report.
+
+The CLI uses the real agent and therefore still requires `OPENAI_API_KEY` even when the judge is disabled; the no-judge mode
+only removes the additional semantic-judge calls.
+
+Run the deterministic Layer 2 evaluation without the GEval judge. Report will be created by default:
+
+```bash
+python -m evals.layer2 --without-judge
+```
+
+Run the full Layer 2 evaluation with the default `gpt-4o-mini` GEval judge. To change the LLL model-> change config.py
+(evals/layer2/config.py:41) and __main__.py (evals/layer2/__main__.py:260):
+
+```bash
+python -m evals.layer2
+```
+
+Useful CLI options:
+
+```bash
+python -m evals.layer2 --with-judge --judge-model gpt-4o-mini
+python -m evals.layer2 --without-judge --report reports/layer2-deterministic.json
+python -m evals.layer2 --max-judge-cost-usd 1.00
+```
+
+`--with-judge` explicitly enables the default semantic judge; `--judge-model` selects another judge model; `--report` sets
+the JSON output path; and `--max-judge-cost-usd` fails the run if the known judge cost exceeds the specified budget.
+
+Run the offline Layer 2 pytest suite. Live tests are deselected unless explicitly enabled, so this command does not construct
+the real agent or call paid external APIs:
+
+```bash
+python -m pytest evals/layer2/tests -v
+```
+
+Opt in to the live Layer 2 pytest evaluation with the default judge:
+
+```bash
+python -m pytest evals/layer2/tests --run-layer2-live -v
+```
+
+Run the live pytest evaluation with deterministic metrics only, or apply a judge model and cost limit:
+
+```bash
+python -m pytest evals/layer2/tests --run-layer2-live --layer2-without-judge -v
+python -m pytest evals/layer2/tests --run-layer2-live --layer2-judge-model gpt-4o-mini --layer2-max-judge-cost-usd 1.00 -v
+```
+
+`--run-layer2-live` enables the real-agent tests; `--layer2-without-judge` disables GEval; `--layer2-judge-model` chooses
+the judge; and `--layer2-max-judge-cost-usd` applies a safe budget gate. The live pytest fixture runs the full golden dataset
+once and exposes each case as an individual pytest result.
 
 ## DeepEval
 
@@ -257,5 +306,5 @@ The planned end-to-end test case flow is:
 3. Run the metrics appropriate to the layer and compare them with configured thresholds.
 4. Investigate failures in layer order: integrity → retrieval → answer → tool/decision behavior.
 
-Layer 1 is currently implemented as the foundation of this workflow. The Layer 2–4 DeepEval test cases and datasets can 
-be added incrementally without replacing the real application path.
+Layers 1 and 2 are implemented as the foundation of this workflow. Layers 3 and 4 can be added incrementally without
+replacing the real application path.
